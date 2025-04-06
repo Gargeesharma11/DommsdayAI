@@ -1,0 +1,163 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Chatbot with Image Generation</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.3/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .spinner {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none; /* Will be displayed during API requests */
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="max-w-xl mx-auto mt-10 p-4 bg-white shadow rounded-md">
+        <h1 class="text-xl font-bold mb-4 text-center">Chatbot with Image Generation</h1>
+        <div id="chat-window" class="border p-4 h-64 overflow-y-scroll mb-4">
+            <div id="messages"></div>
+        </div>
+        <div class="flex items-center">
+            <input type="text" id="user-input" class="border p-2 flex-grow mr-2" placeholder="Type a message or image prompt">
+            <button id="send-btn" class="bg-blue-500 p-2 text-white">Send</button>
+            <button id="image-btn" class="bg-purple-500 p-2 text-white ml-2">Generate Image</button>
+            <button id="voice-btn" class="bg-green-500 p-2 text-white ml-2">🎤</button>
+            <div id="spinner" class="spinner ml-2"></div>
+        </div>
+    </div>
+
+    <script>
+        let messages = document.getElementById('messages');
+        let userInput = document.getElementById('user-input');
+        let sendBtn = document.getElementById('send-btn');
+        let imageBtn = document.getElementById('image-btn');
+        let voiceBtn = document.getElementById('voice-btn');
+        let spinner = document.getElementById('spinner');
+
+        sendBtn.addEventListener('click', sendMessage);
+        imageBtn.addEventListener('click', generateImage);
+
+        function sendMessage() {
+            let userText = userInput.value;
+            if (userText.trim()) {
+                addMessage("User", userText);
+                getBotResponse(userText);
+                userInput.value = '';
+            }
+        }
+
+        function generateImage() {
+            let userText = userInput.value;
+            if (userText.trim()) {
+                addMessage("User", userText);
+                getImageResponse(userText);
+                userInput.value = '';
+            }
+        }
+
+        function addMessage(sender, text) {
+            let message = document.createElement('div');
+            message.classList.add('my-2', 'p-2', 'rounded', 'w-full', sender === 'User' ? 'bg-blue-200' : 'bg-green-200');
+            message.textContent = `${sender}: ${text}`;
+            messages.appendChild(message);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        async function getBotResponse(userText) {
+            spinner.style.display = 'block';
+            
+            try {
+                let response = await fetch("https://backend.buildpicoapps.com/aero/run/llm-api?pk=v1-Z0FBQUFBQm44bGRwYmo1Rl9oMExNVkxHRGd0cURRNTNNNHBLTVdOUnUzLXNhVDg4S3Z6bnkzb0JSMUwwT1o5N2dRNEVHNlFNVTR1cHI4ajFiSzVoMDQwRXB4ZFZuRjZBVVE9PQ==", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ prompt: userText })
+                });
+
+                let data = await response.json();
+
+                if (data.status === "success") {
+                    addMessage("Bot", data.text);
+                } else {
+                    addMessage("Bot", "There was an error processing your request.");
+                    console.error("Error: ", data);
+                }
+            } catch (error) {
+                addMessage("Bot", "Failed to reach the server.");
+                console.error("Fetch error: ", error);
+            } finally {
+                spinner.style.display = 'none';
+            }
+        }
+
+        async function getImageResponse(prompt) {
+            spinner.style.display = 'block';
+
+            try {
+                let response = await fetch("https://backend.buildpicoapps.com/aero/run/image-generation-api?pk=v1-Z0FBQUFBQm44bGQySkt6aFZSRjZkU0JtTFNxVlpPLUlUb1VKOEhFQ1J5d2IwNWlQYUpndGoySUN1UnNYNE1xSmhqd25Qa1VnTXRYUXVITFJvTGZxdUk5YXhHSnJaMjIxMUE9PQ==", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+
+                let data = await response.json();
+
+                if (data.status === "success") {
+                    let imageElement = document.createElement('img');
+                    imageElement.src = data.imageUrl;
+                    imageElement.classList.add('my-2', 'w-full', 'h-64', 'object-cover');
+                    messages.appendChild(imageElement);
+                } else {
+                    addMessage("Bot", "There was an error generating the image.");
+                    console.error("Error: ", data);
+                }
+            } catch (error) {
+                addMessage("Bot", "Failed to reach the server.");
+                console.error("Fetch error: ", error);
+            } finally {
+                spinner.style.display = 'none';
+            }
+        }
+
+        if ('webkitSpeechRecognition' in window) {
+            var recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            voiceBtn.addEventListener('click', function() {
+                recognition.start();
+            });
+
+            recognition.onresult = function(event) {
+                let voiceResult = event.results[0][0].transcript;
+                userInput.value = voiceResult;
+                addMessage("User", voiceResult);
+                getBotResponse(voiceResult);
+            };
+
+            recognition.onerror = function(event) {
+                console.log('Speech recognition error', event);
+            };
+        } else {
+            voiceBtn.disabled = true;
+            voiceBtn.title = "Voice recognition not supported in this browser.";
+        }
+    </script>
+</body>
+</html>
